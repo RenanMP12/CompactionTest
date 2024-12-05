@@ -10,6 +10,17 @@ import pandas as pd
 import matplotlib.pyplot as plt 
 from pymoo.core.problem import ElementwiseProblem
 
+plt.rcParams["axes.labelsize"] = 30
+plt.rcParams["figure.dpi"] = 100
+plt.rcParams["figure.figsize"] = [12.0, 6.00]
+plt.rcParams["figure.autolayout"] = True
+plt.rcParams["font.size"] = 30
+plt.rcParams["legend.fontsize"] = 30
+plt.rcParams["lines.linewidth"] = 2.5
+plt.rcParams["lines.markersize"] = 10
+plt.rcParams["xtick.labelsize"] = 30
+plt.rcParams["ytick.labelsize"] = 30
+
 prev_sum = 0.03
 
 class Compaction_Problem(ElementwiseProblem):
@@ -23,7 +34,25 @@ class Compaction_Problem(ElementwiseProblem):
         self.compaction_data = pd.read_csv(compaction_data) 
         
     ## Gruenwald-Letnikov coefficients
-    def gruenwald(self, alpha, number_of_points):
+    def gruenwald(self, alpha: float, number_of_points: int) -> list[float]:
+        """
+        Function to compute the Gruenwald coeficients 
+
+        Parameters
+        ----------
+        alpha : float
+            DESCRIPTION. Fractional-Zener parameter
+            
+        number_of_points : int
+            DESCRIPTION. Number of points extracted from the curve to fit
+
+        Returns
+        -------
+        Grunwald: list[float]
+            DESCRIPTION. List of Gruenwald-Letnikov coefficients to compute the
+            i-th stress and strain values 
+
+        """
         Grunwald = np.zeros(number_of_points+1)
         Grunwald[0] = 1.
         for i in range (number_of_points):
@@ -31,7 +60,25 @@ class Compaction_Problem(ElementwiseProblem):
         return Grunwald       
 
     ## A & B parameters
-    def ab_parameters(self, x):
+    def ab_parameters(self, x: list[float]) -> [float, float]:
+        """
+        Function to compute the parameters "a" and "b" for the Fractional-Zener
+        rheological model
+
+        Parameters
+        ----------
+        x : list[float]
+            DESCRIPTION. List of rheological coeficients
+
+        Returns
+        -------
+        a: float
+            DESCRIPTION.
+            
+        b: float
+            DESCRIPTION.
+
+        """
         alpha = x[0]
         p = x[1]
         E0 = x[2]
@@ -49,23 +96,23 @@ class Compaction_Problem(ElementwiseProblem):
 
             fig, ax = plt.subplots()
             
-            #s = '\u03B1 = ' + "{:.2f}".format(x[0]) 
-            #t = '$p$ = ' + "{:.2e} Pa".format(x[1]) 
-            #u = '$E_{0}$ = ' + "{:.2e} Pa".format(x[2])
-            #v = '$E_{1}$ = ' + "{:.2e} Pa".format(x[3]) 
-            #w = 'e = ' + "{:.2f}".format(np.sqrt(soma)) 
-            #fig.text(0.95, 0.8, s, fontsize=12)
-            #fig.text(0.95, 0.7, t, fontsize=12)
-            #fig.text(0.95, 0.6, u, fontsize=12)
-            #fig.text(0.95, 0.5, v, fontsize=12)
-            #fig.text(0.95, 0.0, w, fontsize=12)
             t = self.compaction_data['Time'].to_numpy(dtype = float)
-            ax.plot(t, sigma_num, label = 'Numerical', color = 'blue')
-            ax.plot(t, sigma_exp.to_numpy(dtype = float), label = 'Experimental', marker = 'x', color = 'red')
-            ax.set_ylabel(u'\u03C3 [Pa]')
+            ax.plot(t, sigma_num/1e6, label = 'Fractional Zener', color = 'blue')
+            ax.plot(t, sigma_exp.to_numpy(dtype = float)/1e6, 
+                    label = 'Experimental', marker = 'x', color = 'red')
+            ax.set_ylabel(u'\u03C3 [MPa]')
             ax.set_xlabel('Time [s]')
+            
+            ax.set_xlim([200, 320])
+            ax.set_xticks([220, 240, 260, 280, 300, 320])
+            
+            ax.set_ylim([0.11, 0.16])
+            ax.set_yticks([0.110, 0.120, 0.130, 0.140, 0.150])
+            
             ax.grid()
             ax.legend()
+            
+            plt.savefig('outputs/compaction_fractional_zener_stage_2.jpg')
 
     def _evaluate(self, x, out, *args, **kwargs):
         sigma_exp = self.compaction_data['Force-mean']/(np.pi*28**2)
@@ -74,14 +121,14 @@ class Compaction_Problem(ElementwiseProblem):
         number_of_points = len(sigma_exp)
         
         sigma_num = np.zeros(number_of_points)
-        strainlevel = 0.494949494949495
         
         a, b = self.ab_parameters(x)
         c2 = 1+a; c1 = (x[2]+b)/c2
         gr = self.gruenwald(x[0], number_of_points)
-
+    
         Step = 0
         while Step < number_of_points:
+            strainlevel = self.compaction_data['Strain'][Step]
             StrainFrac = 0.0
             StressFrac = 0.0
             for j in range(1, Step+1):
